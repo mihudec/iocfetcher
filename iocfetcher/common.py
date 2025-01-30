@@ -13,24 +13,24 @@ from typing import Any, Generator, Union, Iterable, List, Tuple, Dict
 LOGGER = get_logger(name="IoC Fetcher", level=10)
 
 
-REGEX_IP_LINE = re.compile(pattern="^(?:\d{1,3}\.){3}(?:\d{1,3})$", flags=re.MULTILINE)
-REGEX_IPMASK_LINE = re.compile(pattern="^(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})$", flags=re.MULTILINE)
-REGEX_IPMASKOPT_LINE = re.compile(pattern="^(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?$", flags=re.MULTILINE)
+REGEX_IP_LINE = re.compile(pattern=r"^(?:\d{1,3}\.){3}(?:\d{1,3})$", flags=re.MULTILINE)
+REGEX_IPMASK_LINE = re.compile(pattern=r"^(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})$", flags=re.MULTILINE)
+REGEX_IPMASKOPT_LINE = re.compile(pattern=r"^(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?$", flags=re.MULTILINE)
 
-REGEX_IP = re.compile(pattern="(?:\d{1,3}\.){3}(?:\d{1,3})")
-REGEX_IPMASK = re.compile(pattern="(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})")
-REGEX_IPMASKOPT = re.compile(pattern="(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?")
+REGEX_IP = re.compile(pattern=r"(?:\d{1,3}\.){3}(?:\d{1,3})")
+REGEX_IPMASK = re.compile(pattern=r"(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})")
+REGEX_IPMASKOPT = re.compile(pattern=r"(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?")
 
 
-REGEX_DOMAIN_LINE = re.compile(r'^(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{1,63})*(?:\.(?!-)[A-Za-z0-9-]{2,63})+$', flags=re.MULTILINE)
-REGEX_DOMAIN = re.compile(r'\b(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{1,63})*(?:\.(?!-)[A-Za-z0-9-]{2,63})+\b')
+REGEX_DOMAIN_LINE = re.compile(r"^(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{1,63})*(?:\.(?!-)[A-Za-z0-9-]{2,63})+$", flags=re.MULTILINE)
+REGEX_DOMAIN = re.compile(r"\b(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{1,63})*(?:\.(?!-)[A-Za-z0-9-]{2,63})+\b")
 
-REGEX_HASH = re.compile(r'\b(?:([a-fA-F0-9]{64})|([a-fA-F0-9]{40})|([a-fA-F0-9]{32}))\b')
-REGEX_MD5 = re.compile(r'\b[a-fA-F0-9]{32}\b')
-REGEX_SHA1 = re.compile(r'\b[a-fA-F0-9]{40}\b')
-REGEX_SHA256 = re.compile(r'\b[a-fA-F0-9]{64}\b')
-REGEX_SHA512 = re.compile(r'\b[a-fA-F0-9]{128}\b')
-REGEX_URL = re.compile(r'\b((http|https|ftp):\/\/)?((\d{1,3}\.){3}\d{1,3}|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(:[0-9]{1,5})?\/[^\s]*\b')
+REGEX_HASH = re.compile(r"\b(?:([a-fA-F0-9]{64})|([a-fA-F0-9]{40})|([a-fA-F0-9]{32}))\b")
+REGEX_MD5 = re.compile(r"\b[a-fA-F0-9]{32}\b")
+REGEX_SHA1 = re.compile(r"\b[a-fA-F0-9]{40}\b")
+REGEX_SHA256 = re.compile(r"\b[a-fA-F0-9]{64}\b")
+REGEX_SHA512 = re.compile(r"\b[a-fA-F0-9]{128}\b")
+REGEX_URL = re.compile(r"\b((http|https|ftp):\/\/)?((\d{1,3}\.){3}\d{1,3}|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(:[0-9]{1,5})?\/[^\s]*\b")
 
 class EctiJsonEncoder(json.JSONEncoder):
 

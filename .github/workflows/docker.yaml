@@ -17,8 +17,10 @@ jobs:
           images: mihudec/iocfetcher
           tags: |
             type=semver,pattern={{version}}
-            ${{ github.ref_name == 'main' && 'latest' || '' }}
-
+            type=ref,event=release
+          flavor: |
+            latest={{github.ref_name == 'main'}}
+        
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
@@ -34,7 +36,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
-          context: .  # Assuming Dockerfile is in the root
+          context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
