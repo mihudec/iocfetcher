@@ -10,6 +10,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Extract release tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
@@ -17,10 +21,9 @@ jobs:
           images: mihudec/iocfetcher
           tags: |
             type=semver,pattern={{version}}
-            type=ref,event=release
-          flavor: |
-            latest={{github.ref_name == 'main'}}
-        
+            ${{ env.version }}
+            ${{ env.version }},latest
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
