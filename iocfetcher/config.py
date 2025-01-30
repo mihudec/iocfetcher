@@ -56,11 +56,17 @@ class FeedConfig(ConfigBase):
     scopes: Optional[List[ScopeString]] = Field(default=["COMMON"])
     headers: Optional[Dict[str, str]] = Field({})
 
+class CacheConfig(ConfigBase):
+    expiration: Optional[int] = 60
+    max_age: Optional[int] = 300
+
+class ServerConfig(ConfigBase):
+    cache: Optional[CacheConfig] = Field(default_factory=CacheConfig)
+    log_verbosity: Optional[int] = 20
 
 class Config(ConfigBase):
-
+    server: Optional[ServerConfig] = Field(default_factory=ServerConfig)
     sources: List[FeedConfig]
-    log_verbosity: int = 20
 
 
     def get_sources(self, typ: str, cat: str, scopes: List[str] = ['COMMON']) -> List[FeedConfig]:

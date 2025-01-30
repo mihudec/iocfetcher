@@ -3,6 +3,7 @@ import ipaddress
 import time
 import json
 
+import tldextract
 
 from iocfetcher.config import FeedConfig, FeedFormat, IoCTypes, IoCCategories
 from iocfetcher.logger import get_logger
@@ -21,8 +22,8 @@ REGEX_IPMASK = re.compile(pattern="(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})")
 REGEX_IPMASKOPT = re.compile(pattern="(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?")
 
 
-REGEX_DOMAIN_LINE = re.compile(r'^\b(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{2,63})+\b$', flags=re.MULTILINE)
-REGEX_DOMAIN = re.compile(r'\b(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{2,63})+\b')
+REGEX_DOMAIN_LINE = re.compile(r'^(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{1,63})*(?:\.(?!-)[A-Za-z0-9-]{2,63})+$', flags=re.MULTILINE)
+REGEX_DOMAIN = re.compile(r'\b(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{1,63})*(?:\.(?!-)[A-Za-z0-9-]{2,63})+\b')
 
 REGEX_HASH = re.compile(r'\b(?:([a-fA-F0-9]{64})|([a-fA-F0-9]{40})|([a-fA-F0-9]{32}))\b')
 REGEX_MD5 = re.compile(r'\b[a-fA-F0-9]{32}\b')
@@ -119,7 +120,22 @@ def parse_ip_network(ip_str: str) -> Union[ipaddress.IPv4Network, ipaddress.IPv6
 
 def read_ip(source: Iterable) -> Generator[Union[ipaddress.IPv4Network, ipaddress.IPv6Network], None, None]:
     for line in source:
-        yield parse_ip_network(line)
+        ip = parse_ip_network(line)
+        try:
+            if ip.is_global:
+                yield ip
+            else:
+                LOGGER.debug(f"Invalid IP: {line}")
+        except Exception as e:
+            LOGGER.debug(f"Error processing IP: {line}")
+
+def read_domain(source: Iterable) -> Generator[str, None, None]:
+    for line in source:
+        parts = tldextract.extract(line)
+        if parts.suffix != '':
+            yield line
+        else:
+            LOGGER.debug(f"Invalid domain: {line}")
 
 
 
@@ -157,7 +173,6 @@ def process_feed_data(fetch_results: List[Tuple[FeedConfig, Any]]):
 
         if len(data) == 0:
             continue
-
         if IoCTypes.IP in source.types:
             if source.format == FeedFormat.TEXT_LINES:
                 ip_list = list(read_ip(validate_lines(data, regex=REGEX_IPMASKOPT_LINE)))
@@ -174,15 +189,15 @@ def process_feed_data(fetch_results: List[Tuple[FeedConfig, Any]]):
         
         if IoCTypes.DOMAIN in source.types:
             if source.format == FeedFormat.TEXT_LINES:
-                domains = validate_lines(data, regex=REGEX_DOMAIN_LINE)
+                domains = read_domain(validate_lines(data, regex=REGEX_DOMAIN_LINE))
                 for c in [x.value for x in source.categories]:
                     results[IoCTypes.DOMAIN.value][c].update((x.lower() for x in domains))
             elif source.format == FeedFormat.STIX_PATTER:
-                domains = search_lines(data, regex=REGEX_DOMAIN)
+                domains = read_domain(search_lines(data, regex=REGEX_DOMAIN))
                 for c in [x.value for x in source.categories]:
                     results[IoCTypes.DOMAIN.value][c].update((x.lower() for x in domains))
             elif source.format == FeedFormat.TEXT:
-                domains = search_text(data, regex=REGEX_DOMAIN_LINE)
+                domains = read_domain(search_text(data, regex=REGEX_DOMAIN_LINE))
                 for c in [x.value for x in source.categories]:
                     results[IoCTypes.DOMAIN.value][c].update((x.lower() for x in domains))
         

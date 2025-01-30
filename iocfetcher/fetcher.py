@@ -12,7 +12,6 @@ async def fetch_source(client: httpx.AsyncClient, source: FeedConfig) -> Tuple[F
     try:
         response = await client.get(str(source.url), headers=source.headers, timeout=10, follow_redirects=True)
         response.raise_for_status()
-        
         if source.format == FeedFormat.TEXT_LINES:
             return (source, response.text.splitlines())
         elif source.format == FeedFormat.TEXT:
