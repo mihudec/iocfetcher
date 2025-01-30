@@ -1,0 +1,21 @@
+[project]
+name = "iocfetcher"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Miroslav Hudec",email = "mrslv.hudec@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx (>=0.28.1,<0.29.0)",
+    "fastapi (>=0.115.7,<0.116.0)",
+    "pydantic (>=2.10.6,<3.0.0)",
+    "pyyaml (>=6.0.2,<7.0.0)",
+    "uvicorn (>=0.34.0,<0.35.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
