@@ -1,6 +1,6 @@
 import httpx
 import asyncio
-from config import Config, FeedConfig, FeedFormat
+from iocfetcher.config import Config, FeedConfig, FeedFormat
 from typing import List, Dict, Tuple
 
 from iocfetcher.common import LOGGER
