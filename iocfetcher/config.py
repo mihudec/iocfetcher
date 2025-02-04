@@ -73,8 +73,13 @@ class Config(ConfigBase):
         typ = IoCTypes(typ)
         cat = IoCCategories(cat)
         scopes = [x.lower() for x in scopes]
-        return [
+        sources = [
             source for source in self.sources 
             if typ in source.types and cat in source.categories and (any(x in source.scopes for x in scopes))
         ]
+        excludes = [
+            source for source in self.sources 
+            if typ in source.types and IoCCategories('exclude') in source.categories and (any(x in source.scopes for x in scopes))
+        ]
+        return sources + excludes
 

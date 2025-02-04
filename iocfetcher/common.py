@@ -17,9 +17,9 @@ REGEX_IP_LINE = re.compile(pattern=r"^(?:\d{1,3}\.){3}(?:\d{1,3})$", flags=re.MU
 REGEX_IPMASK_LINE = re.compile(pattern=r"^(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})$", flags=re.MULTILINE)
 REGEX_IPMASKOPT_LINE = re.compile(pattern=r"^(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?$", flags=re.MULTILINE)
 
-REGEX_IP = re.compile(pattern=r"(?:\d{1,3}\.){3}(?:\d{1,3})")
-REGEX_IPMASK = re.compile(pattern=r"(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})")
-REGEX_IPMASKOPT = re.compile(pattern=r"(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?")
+REGEX_IP = re.compile(pattern=r"\b(?:\d{1,3}\.){3}(?:\d{1,3})\b")
+REGEX_IPMASK = re.compile(pattern=r"\b(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})\b")
+REGEX_IPMASKOPT = re.compile(pattern=r"\b(?:\d{1,3}\.){3}(?:\d{1,3})(?:\/\d{1,2})?\b")
 
 
 REGEX_DOMAIN_LINE = re.compile(r"^(?!(?:\d{1,3}\.){3}\d{1,3}\b)(?!-)[A-Za-z0-9-]{1,63}(?:\.(?!-)[A-Za-z0-9-]{1,63})*(?:\.(?!-)[A-Za-z0-9-]{2,63})+$", flags=re.MULTILINE)
@@ -183,7 +183,7 @@ def process_feed_data(fetch_results: List[Tuple[FeedConfig, Any]]):
                 for c in [x.value for x in source.categories]:
                     results[IoCTypes.IP.value][c].update(ip_list)
             elif source.format == FeedFormat.TEXT:
-                ip_list = list(read_ip(search_text(data, regex=REGEX_IPMASKOPT_LINE)))
+                ip_list = list(read_ip(search_text(data, regex=REGEX_IPMASKOPT)))
                 for c in [x.value for x in source.categories]:
                     results[IoCTypes.IP.value][c].update(ip_list)
         
@@ -219,10 +219,17 @@ def process_feed_data(fetch_results: List[Tuple[FeedConfig, Any]]):
     # Remove Excluded Values
     for t in results.keys():
         if IoCCategories.EXCLUDE.value in results[t].keys():
+            LOGGER.debug(f"Exclude list found, excluding {len(results[t][IoCCategories.EXCLUDE.value])} results...")
             if IoCCategories.BLOCK in results[t].keys():
+                before = len(results[t][IoCCategories.BLOCK.value])
                 results[t][IoCCategories.BLOCK.value] -= results[t][IoCCategories.EXCLUDE.value]
+                after = len(results[t][IoCCategories.BLOCK.value])
+                LOGGER.debug(f"BLOCK Exclusions: Before: {before} After: {after} Diff: {before - after}")
             if IoCCategories.IOC in results[t].keys():
+                before = len(results[t][IoCCategories.IOC.value])
                 results[t][IoCCategories.IOC.value] -= results[t][IoCCategories.EXCLUDE.value]
+                after = len(results[t][IoCCategories.IOC.value])
+                LOGGER.debug(f"IOC Exclusions: Before: {before} After: {after} Diff: {before - after}")
 
 
     # Summarize IP Addresses
