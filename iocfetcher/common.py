@@ -2,6 +2,7 @@ import re
 import ipaddress
 import time
 import json
+import pytricia
 
 import tldextract
 
@@ -218,18 +219,46 @@ def process_feed_data(fetch_results: List[Tuple[FeedConfig, Any]]):
 
     # Remove Excluded Values
     for t in results.keys():
-        if IoCCategories.EXCLUDE.value in results[t].keys():
-            LOGGER.debug(f"Exclude list found, excluding {len(results[t][IoCCategories.EXCLUDE.value])} results...")
-            if IoCCategories.BLOCK in results[t].keys():
-                before = len(results[t][IoCCategories.BLOCK.value])
-                results[t][IoCCategories.BLOCK.value] -= results[t][IoCCategories.EXCLUDE.value]
-                after = len(results[t][IoCCategories.BLOCK.value])
-                LOGGER.debug(f"BLOCK Exclusions: Before: {before} After: {after} Diff: {before - after}")
-            if IoCCategories.IOC in results[t].keys():
-                before = len(results[t][IoCCategories.IOC.value])
-                results[t][IoCCategories.IOC.value] -= results[t][IoCCategories.EXCLUDE.value]
-                after = len(results[t][IoCCategories.IOC.value])
-                LOGGER.debug(f"IOC Exclusions: Before: {before} After: {after} Diff: {before - after}")
+        if t == IoCTypes.IP.value:
+            if IoCCategories.EXCLUDE.value in results[t].keys():
+                trie_v4 = pytricia.PyTricia(32)
+                trie_v6 = pytricia.PyTricia(128)
+                for ip in results[t][IoCCategories.EXCLUDE.value]:
+                    if ip.version == 4:
+                        trie_v4.insert(ip, True)
+                    elif ip.version == 6:
+                        trie_v6.insert(ip, True)
+                
+                exclude_matches = set()
+                
+                if IoCCategories.BLOCK in results[t].keys():
+                    exclude_matches.update((ip for ip in results[t][IoCCategories.BLOCK.value] if trie_v4.get_key(ip)))
+                    exclude_matches.update((ip for ip in results[t][IoCCategories.BLOCK.value] if trie_v6.get_key(ip)))
+                    LOGGER.debug(f"{exclude_matches=}")
+                    before = len(results[t][IoCCategories.BLOCK.value])
+                    results[t][IoCCategories.BLOCK.value] -= exclude_matches
+                    after = len(results[t][IoCCategories.BLOCK.value])
+                    LOGGER.debug(f"BLOCK Exclusions: Before: {before} After: {after} Diff: {before - after}")
+                if IoCCategories.IOC in results[t].keys():
+                    exclude_matches.update((ip for ip in results[t][IoCCategories.IOC.value] if trie_v4.get_key(ip)))
+                    LOGGER.debug(f"{exclude_matches=}")
+                    before = len(results[t][IoCCategories.IOC.value])
+                    results[t][IoCCategories.IOC.value] -= exclude_matches
+                    after = len(results[t][IoCCategories.IOC.value])
+                    LOGGER.debug(f"IOC Exclusions: Before: {before} After: {after} Diff: {before - after}")
+        else:
+            if IoCCategories.EXCLUDE.value in results[t].keys():
+                if IoCCategories.BLOCK in results[t].keys():
+                    LOGGER.debug(f"Exclude list found, excluding {len(results[t][IoCCategories.EXCLUDE.value])} results...")
+                    before = len(results[t][IoCCategories.BLOCK.value])
+                    results[t][IoCCategories.BLOCK.value] -= results[t][IoCCategories.EXCLUDE.value]
+                    after = len(results[t][IoCCategories.BLOCK.value])
+                    LOGGER.debug(f"BLOCK Exclusions: Before: {before} After: {after} Diff: {before - after}")
+                if IoCCategories.IOC in results[t].keys():
+                    before = len(results[t][IoCCategories.IOC.value])
+                    results[t][IoCCategories.IOC.value] -= results[t][IoCCategories.EXCLUDE.value]
+                    after = len(results[t][IoCCategories.IOC.value])
+                    LOGGER.debug(f"IOC Exclusions: Before: {before} After: {after} Diff: {before - after}")
 
 
     # Summarize IP Addresses

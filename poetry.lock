@@ -440,6 +440,18 @@ files = [
 typing-extensions = ">=4.6.0,<4.7.0 || >4.7.0"
 
 [[package]]
+name = "pytricia"
+version = "1.0.2"
+description = "An efficient IP address storage and lookup module for Python."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pytricia-1.0.2-cp37-cp37m-macosx_10_9_x86_64.whl", hash = "sha256:ee49486fd0726eca7d2219029bef162652ca80dfb07f7eedadc6cfc5f3559231"},
+    {file = "pytricia-1.0.2.tar.gz", hash = "sha256:7f6c0afdce55a1b7651a1a56d8b621c228a211dd23f3f8c5c1fdec3af2c19b15"},
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.2"
 description = "YAML parser and emitter for Python"
@@ -644,4 +656,4 @@ standard = ["colorama (>=0.4)", "httptools (>=0.6.3)", "python-dotenv (>=0.13)",
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10"
-content-hash = "7301aebd2dfeb87095f6dbba9f8d6e4ddb9f668f16e99a02e9bcbcc6f0d7cc78"
+content-hash = "713df6f07484b74966df323eaca54186464fbf3511870ffa18ee67a972c56ec0"
