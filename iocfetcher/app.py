@@ -35,7 +35,8 @@ async def store_in_cache(cache_key, response_data):
 
 def serialize_list(data: list, typ: IoCTypes):
     if typ == IoCTypes.IP:
-        for ip in data:
+        ipv4, ipv6, _ = summarize_subnets(data)
+        for ip in ipv4 + ipv6:
             if ip.prefixlen in [32, 128]:
                 yield str(ip.network_address)
             else:
