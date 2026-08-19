@@ -63,6 +63,7 @@ class CacheConfig(ConfigBase):
 class ServerConfig(ConfigBase):
     cache: Optional[CacheConfig] = Field(default_factory=CacheConfig)
     log_verbosity: Optional[int] = 20
+    fetch_timeout: Optional[int] = 30
 
 class Config(ConfigBase):
     server: Optional[ServerConfig] = Field(default_factory=ServerConfig)
