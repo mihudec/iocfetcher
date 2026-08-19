@@ -3,6 +3,7 @@ import ipaddress
 import time
 import json
 import pytricia
+from dataclasses import dataclass, field
 
 import tldextract
 
@@ -12,6 +13,7 @@ from iocfetcher.logger import get_logger
 from typing import Any, Generator, Union, Iterable, List, Tuple, Dict
 
 LOGGER = get_logger(name="IoC Fetcher", level=10)
+TLD_EXTRACT = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=None)
 
 
 REGEX_IP_LINE = re.compile(pattern=r"^(?:\d{1,3}\.){3}(?:\d{1,3})$", flags=re.MULTILINE)
@@ -32,6 +34,15 @@ REGEX_SHA1 = re.compile(r"\b[a-fA-F0-9]{40}\b")
 REGEX_SHA256 = re.compile(r"\b[a-fA-F0-9]{64}\b")
 REGEX_SHA512 = re.compile(r"\b[a-fA-F0-9]{128}\b")
 REGEX_URL = re.compile(r"\b((http|https|ftp):\/\/)?((\d{1,3}\.){3}\d{1,3}|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(:[0-9]{1,5})?\/[^\s]*\b")
+
+type IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+
+@dataclass(frozen=True, slots=True)
+class ValidatedFeedData:
+    ips: frozenset[IPNetwork] = field(default_factory=frozenset)
+    domains: frozenset[str] = field(default_factory=frozenset)
+    hashes: frozenset[str] = field(default_factory=frozenset)
 
 class EctiJsonEncoder(json.JSONEncoder):
 
@@ -132,11 +143,48 @@ def read_ip(source: Iterable) -> Generator[Union[ipaddress.IPv4Network, ipaddres
 
 def read_domain(source: Iterable) -> Generator[str, None, None]:
     for line in source:
-        parts = tldextract.extract(line)
+        parts = TLD_EXTRACT(line)
         if parts.suffix != '':
             yield line
         else:
             LOGGER.debug(f"Invalid domain: {line}")
+
+
+def validate_feed_data(source: FeedConfig, payload: str) -> ValidatedFeedData:
+    """Parse, validate, normalize, and deduplicate one downloaded feed."""
+    lines = tuple(line.strip() for line in payload.splitlines())
+    ips: frozenset[IPNetwork] = frozenset()
+    domains: frozenset[str] = frozenset()
+    hashes: frozenset[str] = frozenset()
+
+    if IoCTypes.IP in source.types:
+        if source.format == FeedFormat.TEXT_LINES:
+            candidates = validate_lines(lines, regex=REGEX_IPMASKOPT_LINE)
+        elif source.format == FeedFormat.STIX_PATTER:
+            candidates = search_lines(lines, regex=REGEX_IPMASKOPT)
+        else:
+            candidates = search_text(payload, regex=REGEX_IPMASKOPT)
+        ips = frozenset(read_ip(candidates))
+
+    if IoCTypes.DOMAIN in source.types:
+        if source.format == FeedFormat.TEXT_LINES:
+            candidates = validate_lines(lines, regex=REGEX_DOMAIN_LINE)
+        elif source.format == FeedFormat.STIX_PATTER:
+            candidates = search_lines(lines, regex=REGEX_DOMAIN)
+        else:
+            candidates = search_text(payload, regex=REGEX_DOMAIN_LINE)
+        domains = frozenset(domain.lower() for domain in read_domain(candidates))
+
+    if IoCTypes.HASH in source.types:
+        if source.format == FeedFormat.TEXT_LINES:
+            candidates = validate_lines(lines, regex=REGEX_HASH)
+        elif source.format == FeedFormat.STIX_PATTER:
+            candidates = search_lines(lines, regex=REGEX_HASH)
+        else:
+            candidates = search_text(payload, regex=REGEX_HASH)
+        hashes = frozenset(value.lower() for value in candidates)
+
+    return ValidatedFeedData(ips=ips, domains=domains, hashes=hashes)
 
 
 
@@ -159,7 +207,7 @@ def summarize_subnets(subnets: Iterable[Union[ipaddress.IPv4Network, ipaddress.I
 
     return subnets_v4_sum, subnets_v6_sum, length_input
 
-def process_feed_data(fetch_results: List[Tuple[FeedConfig, Any]]):
+def process_feed_data(fetch_results: List[Tuple[FeedConfig, ValidatedFeedData]]):
     results = {}
 
     for source, _ in fetch_results:
@@ -171,50 +219,17 @@ def process_feed_data(fetch_results: List[Tuple[FeedConfig, Any]]):
                     results[t][c] = set()
 
     for source, data in fetch_results:
-
-        if len(data) == 0:
-            continue
         if IoCTypes.IP in source.types:
-            if source.format == FeedFormat.TEXT_LINES:
-                ip_list = list(read_ip(validate_lines(data, regex=REGEX_IPMASKOPT_LINE)))
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.IP.value][c].update(ip_list)
-            elif source.format == FeedFormat.STIX_PATTER:
-                ip_list = list(read_ip(search_lines(data, regex=REGEX_IPMASKOPT)))
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.IP.value][c].update(ip_list)
-            elif source.format == FeedFormat.TEXT:
-                ip_list = list(read_ip(search_text(data, regex=REGEX_IPMASKOPT)))
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.IP.value][c].update(ip_list)
+            for c in [x.value for x in source.categories]:
+                results[IoCTypes.IP.value][c].update(data.ips)
         
         if IoCTypes.DOMAIN in source.types:
-            if source.format == FeedFormat.TEXT_LINES:
-                domains = read_domain(validate_lines(data, regex=REGEX_DOMAIN_LINE))
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.DOMAIN.value][c].update((x.lower() for x in domains))
-            elif source.format == FeedFormat.STIX_PATTER:
-                domains = read_domain(search_lines(data, regex=REGEX_DOMAIN))
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.DOMAIN.value][c].update((x.lower() for x in domains))
-            elif source.format == FeedFormat.TEXT:
-                domains = read_domain(search_text(data, regex=REGEX_DOMAIN_LINE))
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.DOMAIN.value][c].update((x.lower() for x in domains))
+            for c in [x.value for x in source.categories]:
+                results[IoCTypes.DOMAIN.value][c].update(data.domains)
         
         if IoCTypes.HASH in source.types:
-            if source.format == FeedFormat.TEXT_LINES:
-                hashes = validate_lines(data, regex=REGEX_HASH)
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.HASH.value][c].update((x.lower() for x in hashes))
-            elif source.format == FeedFormat.STIX_PATTER:
-                hashes = search_lines(data, regex=REGEX_HASH)
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.HASH.value][c].update((x.lower() for x in hashes))
-            elif source.format == FeedFormat.TEXT:
-                hashes = search_text(data, regex=REGEX_HASH)
-                for c in [x.value for x in source.categories]:
-                    results[IoCTypes.HASH.value][c].update((x.lower() for x in hashes))
+            for c in [x.value for x in source.categories]:
+                results[IoCTypes.HASH.value][c].update(data.hashes)
         
 
     # Remove Excluded Values

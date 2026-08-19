@@ -22,11 +22,16 @@ class JSONFormatter(logging.Formatter):
         }
         return json.dumps(log_record)
 
-def get_logger(name: str, log_file: pathlib.Path = pathlib.Path("/tmp/iocfetcher.log"), level: int = logging.INFO) -> logging.Logger:
+def normalize_log_level(level: int | str) -> int | str:
+    return level.upper() if isinstance(level, str) else level
+
+
+def get_logger(name: str, log_file: pathlib.Path = pathlib.Path("/tmp/iocfetcher.log"), level: int | str = logging.INFO) -> logging.Logger:
+    level = normalize_log_level(level)
     logger = logging.getLogger(name)
-    if not logger.hasHandlers():
-        # Set the log level to the specified level.
-        logger.setLevel(level)
+    logger.setLevel(level)
+    logger.propagate = False
+    if not logger.handlers:
 
         # Create a console handler for STDERR.
         console_handler = logging.StreamHandler(sys.stderr)
@@ -49,7 +54,8 @@ def get_logger(name: str, log_file: pathlib.Path = pathlib.Path("/tmp/iocfetcher
 
     return logger
 
-def update_logger_level(logger: logging.Logger, level: int):
+def update_logger_level(logger: logging.Logger, level: int | str):
+    level = normalize_log_level(level)
     logger.setLevel(level)
     if logger.hasHandlers():
         for handler in logger.handlers:
