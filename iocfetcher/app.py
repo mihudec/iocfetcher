@@ -1,37 +1,55 @@
 import asyncio
 import time
 import pathlib
-import argparse
+from contextlib import asynccontextmanager
 
+import typer
 from fastapi import FastAPI, Query, Response, HTTPException
 
 from iocfetcher.config import Config, IoCCategories, IoCTypes
-from iocfetcher.fetcher import fetch_source_list
+from iocfetcher.feed_cache import FeedCache
 from iocfetcher.logger import update_logger_level
 from iocfetcher.common import *
 
-from typing import Literal
+from typing import Annotated, Literal
 
-CONFIG = None
+CONFIG: Config = None
+FEED_CACHE = FeedCache()
 
 CACHE_LOCK = asyncio.Lock()
 CACHE = {}
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if CONFIG is not None:
+        FEED_CACHE.start(CONFIG.sources)
+    try:
+        yield
+    finally:
+        await FEED_CACHE.stop()
 
 async def get_cached_response(cache_key):
     """Retrieve from cache if valid."""
     async with CACHE_LOCK:
         cached_entry = CACHE.get(cache_key)
         if cached_entry:
-            if time.time() - cached_entry["timestamp"] < CONFIG.server.cache.expiration:
+            age = time.time() - cached_entry["timestamp"]
+            if age < CONFIG.server.cache.expiration:
+                LOGGER.debug(f"Response cache hit: key={cache_key} age={age:.1f}s")
                 return cached_entry["response_data"]
             else:
+                LOGGER.debug(f"Response cache expired: key={cache_key} age={age:.1f}s")
                 del CACHE[cache_key]  # Remove expired cache
+        else:
+            LOGGER.debug(f"Response cache miss: key={cache_key}")
     return None
 
 async def store_in_cache(cache_key, response_data):
     """Store response in cache."""
     async with CACHE_LOCK:
         CACHE[cache_key] = {"timestamp": time.time(), "response_data": response_data}
+    LOGGER.debug(f"Stored response cache entry: key={cache_key}")
 
 def serialize_list(data: list, typ: IoCTypes):
     if typ == IoCTypes.IP:
@@ -45,11 +63,12 @@ def serialize_list(data: list, typ: IoCTypes):
         for x in data:
             yield x
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get("/healthz")
 def health_check():
+    LOGGER.debug("Health check requested")
     return Response(jdump({"ready": True}), media_type="application/json", status_code=200)
 
 @app.get("/v1/list")
@@ -99,7 +118,7 @@ async def get_list(
             return Response(response_data, headers=headers, media_type=media_type)
         
         sources = CONFIG.get_sources(typ, cat, list(scopes))
-        results = await fetch_source_list(sources)
+        results = await FEED_CACHE.get_sources(sources)
         iocs = process_feed_data(results)
 
         ioc_list = []
@@ -132,18 +151,33 @@ async def get_list(
         return HTTPException(status_code=500)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c",
-        "--config-file",
-        dest="config_file",
-        required=False,
-        default="/app/config.yaml"
-    )
-    args = parser.parse_args()
-    CONFIG = Config.from_config_file(args.config_file)
+def main(
+    config_file: Annotated[
+        pathlib.Path,
+        typer.Option(
+            "--config-file",
+            "-c",
+            help="Path to the YAML configuration file.",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = pathlib.Path("/app/config.yaml"),
+) -> None:
+    global CONFIG, FEED_CACHE
+
+    CONFIG = Config.from_config_file(config_file)
+    FEED_CACHE = FeedCache(default_timeout=CONFIG.server.fetch_timeout)
     update_logger_level(LOGGER, level=CONFIG.server.log_verbosity)
-    print(f"Running with config: {args.config_file}")
+    LOGGER.info(
+        f"Application configured: log_verbosity={CONFIG.server.log_verbosity.value} "
+        f"sources={len(CONFIG.sources)}"
+    )
+    typer.echo(f"Running with config: {config_file}")
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, server_header=False, proxy_headers=True, forwarded_allow_ips="*")
+
+
+if __name__ == "__main__":
+    typer.run(main)

@@ -1,5 +1,5 @@
-# Use official Python 3.12 slim base image
-FROM python:3.12-slim
+# Use official Python 3.14 slim base image
+FROM python:3.14-slim
 
 # Set working directory for the application
 WORKDIR /srv/iocfetcher

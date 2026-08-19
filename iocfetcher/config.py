@@ -43,6 +43,14 @@ class FeedFormat(str, Enum):
     TEXT = "text"
     STIX_PATTER = "stix-pattern"
 
+
+class LogLevel(str, Enum):
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
 ScopeString = Annotated[str, StringConstraints(to_lower=True)]
 
 
@@ -53,8 +61,12 @@ class FeedConfig(ConfigBase):
     format: FeedFormat
     categories: List[IoCCategories] = Field(default=..., )
     types: List[IoCTypes] = Field(default=..., )
-    scopes: Optional[List[ScopeString]] = Field(default=["COMMON"])
-    headers: Optional[Dict[str, str]] = Field({})
+    scopes: Optional[List[ScopeString]] = Field(default_factory=lambda: ["common"])
+    headers: Optional[Dict[str, str]] = Field(default_factory=dict)
+    refresh_after: int = Field(default=300, gt=0)
+    max_stale: Optional[int] = Field(default=None, ge=0)
+    retry_after: int = Field(default=60, gt=0)
+    fetch_timeout: Optional[float] = Field(default=None, gt=0)
 
 class CacheConfig(ConfigBase):
     expiration: Optional[int] = 60
@@ -62,7 +74,13 @@ class CacheConfig(ConfigBase):
 
 class ServerConfig(ConfigBase):
     cache: Optional[CacheConfig] = Field(default_factory=CacheConfig)
-    log_verbosity: Optional[int] = 20
+    log_verbosity: LogLevel = LogLevel.INFO
+    fetch_timeout: Optional[int] = 30
+
+    @field_validator("log_verbosity", mode="before")
+    @classmethod
+    def normalize_log_verbosity(cls, value):
+        return value.lower() if isinstance(value, str) else value
 
 class Config(ConfigBase):
     server: Optional[ServerConfig] = Field(default_factory=ServerConfig)
@@ -82,4 +100,3 @@ class Config(ConfigBase):
             if typ in source.types and IoCCategories('exclude') in source.categories and (any(x in source.scopes for x in scopes))
         ]
         return sources + excludes
-
